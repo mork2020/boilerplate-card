@@ -5,13 +5,14 @@ import {
   hasAction,
   ActionHandlerEvent,
   handleAction,
+  LovelaceCard,
   LovelaceCardEditor,
   getLovelace,
 } from 'custom-card-helpers';
 
 import './editor';
 
-import { BoilerplateCardConfig } from './types';
+import { HomeeThermostatCardConfig } from './types';
 import { actionHandler } from './action-handler-directive';
 import { CARD_VERSION } from './const';
 
@@ -20,31 +21,25 @@ import { HassEntity } from 'home-assistant-js-websocket';
 
 /* eslint no-console: 0 */
 console.info(
-  `%c  BOILERPLATE-CARD \n%c  ${localize('common.version')} ${CARD_VERSION}    `,
+  `%c  Homee-Thermostat-Card \n%c  ${localize('common.version')} ${CARD_VERSION}    `,
   'color: orange; font-weight: bold; background: black',
   'color: white; font-weight: bold; background: dimgray',
 );
 
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
-  type: 'boilerplate-card',
-  name: 'Boilerplate Card',
-  description: 'A template custom card for you to create something awesome',
+  type: 'homeethermostat-card',
+  name: 'Homee-Thermostat Card',
+  description: 'A custom card to show thermostat infos from a Homee. Needs Node-Red to talk to Homee.',
 });
 
-var myGuard = 1;
-
-export function hasChangedCustom(el: HassEntity): boolean {
-  console.log(JSON.stringify('hasChangedCustom'));
-  console.log(JSON.stringify(el));
-  return true;
-}
+let myGuard = 1;
 
 // TODO Name your custom element
-@customElement('boilerplate-card')
-export class BoilerplateCard extends LitElement {
+@customElement('homeethermostat-card')
+export class HomeeThermostatCard extends LitElement {
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
-    return document.createElement('boilerplate-card-editor');
+    return document.createElement('homeethermostat-card-editor');
   }
 
   public static getStubConfig(): object {
@@ -53,10 +48,10 @@ export class BoilerplateCard extends LitElement {
 
   // TODO Add any properities that should cause your element to re-render here
   @property() public hass!: HomeAssistant;
-  @property() private config!: BoilerplateCardConfig;
-  @property({ hasChanged: hasChangedCustom }) private entity?: HassEntity;
+  @property() private config!: HomeeThermostatCardConfig;
+  @property() private myEntities!: Array<HassEntity>;
 
-  public setConfig(config: BoilerplateCardConfig): void {
+  public setConfig(config: HomeeThermostatCardConfig): void {
     // TODO Check for required fields and that they are of the proper format
 
     //console.log(JSON.stringify(config));
@@ -73,9 +68,7 @@ export class BoilerplateCard extends LitElement {
 
     if (!config.entities) {
       errorText += ' entities';
-    }
-
-    if (!Array.isArray(config.entities)) {
+    } else if (!Array.isArray(config.entities)) {
       errorText += ' entities need to be an array ';
     }
 
@@ -88,13 +81,13 @@ export class BoilerplateCard extends LitElement {
     }
 
     this.config = {
-      name: 'BoilerplateXXX',
+      name: 'HomeeThermostatCard',
       ...config,
     };
   }
 
   protected shouldUpdate(changedProps: PropertyValues): boolean {
-    //console.log(JSON.stringify(changedProps));
+    console.log(JSON.stringify(changedProps));
     return true;
     if (!this.config) {
       return false;
@@ -103,23 +96,7 @@ export class BoilerplateCard extends LitElement {
     return hasConfigOrEntityChanged(this, changedProps, false);
   }
 
-  protected render(): TemplateResult | void {
-
-    if (myGuard) {
-      myGuard = 0;
-
-      this.entity = this.hass.states[this.config.entities[0]];
-      //console.log(JSON.stringify(this.entity));
-
-      //console.log(JSON.stringify(this.hass));
-      //console.log(JSON.stringify(this.hass.states['sensor.homee_thermostat_1']));
-    }
-
-    // TODO Check for stateObj or other necessary things and render a warning if missing
-    if (this.config.show_warning) {
-      return this.showWarning(localize('common.show_warning'));
-    }
-
+  private _cardHtml(): TemplateResult {
     return html`
       <ha-card
         .header=${this.config.title}
@@ -132,27 +109,90 @@ export class BoilerplateCard extends LitElement {
         .label=${``}
         })}
       >
-        ${this.config.entities.map((ent, i) => html`
+        ${this.config.entities.map(
+          (ent, i) => html`
           <div>
             ${i}:${ent}
           </<div>
-        `)}
+        `,
+        )}
         ${this.config.entities.map((ent, i) => {
           const stateObj = this.hass.states[ent];
           return html`
             <div>
               ${i}:${stateObj.attributes.friendly_name}
             </<div>
-          `})}
-        ${this.config.entities.map((ent) => {
-        const stateObj = this.hass.states[ent];
+          `;
+        })}
+        ${this.config.entities.map(ent => {
+          const stateObj = this.hass.states[ent];
           return html`
           <div>Thermostat: ${stateObj.attributes.name}</<div>
           <div>Soll Temperatur: ${stateObj.attributes.targettemperature.toFixed(1)}</<div>
           <div>Ist Temperatur: ${stateObj.attributes.temperature.toFixed(1)}</<div>
-        `})}
+        `;
+        })}
       </ha-card>
     `;
+  }
+
+  protected render(): TemplateResult | void {
+    // TODO Check for stateObj or other necessary things and render a warning if missing
+    this.myEntities = new Array<HassEntity>();
+
+    let errorText = '';
+    this.config.entities.map(ent => {
+      const stateObj = this.hass.states[ent];
+      if (!stateObj) {
+        errorText += ent;
+      } else {
+        this.myEntities.push(stateObj);
+      }
+    });
+    if (errorText != '') {
+      //this.config.show_warning = true;
+      //throw new Error('The following entities cannot be found: ' + errorText);
+      const errorCard = document.createElement('hui-error-card') as LovelaceCard;
+      errorCard.setConfig({
+        type: 'error',
+        error: 'The following entities cannot be found: ' + errorText,
+        origConfig: this.config,
+      });
+      return html`
+        ${errorCard}
+      `;
+    }
+
+    if (myGuard) {
+      myGuard = 0;
+
+      console.log(JSON.stringify(this.myEntities));
+      //this.myentity = this.hass.states[this.config.entities[0]];
+      //console.log(JSON.stringify(this.entity));
+
+      //console.log(JSON.stringify(this.hass));
+      //console.log(JSON.stringify(this.hass.states['sensor.homee_thermostat_1']));
+    }
+
+    //if (this.config.show_warning) {
+    //  return this.showWarning(localize('common.show_warning'));
+    //}
+
+    try {
+      return this._cardHtml();
+    } catch (e) {
+      if (e.stack) console.error(e.stack);
+      else console.error(e);
+      const errorCard = document.createElement('hui-error-card') as LovelaceCard;
+      errorCard.setConfig({
+        type: 'error',
+        error: e.toString(),
+        origConfig: this.config,
+      });
+      return html`
+        ${errorCard}
+      `;
+    }
   }
 
   private _handleAction(ev: ActionHandlerEvent): void {

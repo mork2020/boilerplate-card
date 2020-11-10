@@ -1,9 +1,12 @@
 resources:
-  - url: http://127.0.0.1:5000/boilerplate-card.js
+  - url: http://127.0.0.1:5000/homeethermostat-card.js
     type: module
 views:
   - cards:
-      - type: custom:boilerplate-card
-        name: Boilerplate Card Development
-        entity: sun.sun
-        test_gui: true
+      - type: 'custom:homeethermostat-card'
+        title: Homme Termostate
+        entities:
+          - sensor.homee_thermostat_1
+          - sensor.homee_thermostat_2
+          - sensor.homee_thermostat_3
+          - sensor.homee_thermostat_4
