@@ -96,6 +96,39 @@ export class HomeeThermostatCard extends LitElement {
     return hasConfigOrEntityChanged(this, changedProps, false);
   }
 
+  private _checkforStateObj(): [boolean, TemplateResult] {
+    // check if for all entities stateObj extits
+    // if not create error-card
+    this.myEntities = new Array<HassEntity>();
+    let errorText = '';
+    this.config.entities.map(ent => {
+      const stateObj = this.hass.states[ent];
+      if (!stateObj) {
+        errorText += ent;
+      } else {
+        this.myEntities.push(stateObj);
+      }
+    });
+    if (errorText != '') {
+      //this.config.show_warning = true;
+      //throw new Error('The following entities cannot be found: ' + errorText);
+      const errorCard = document.createElement('hui-error-card') as LovelaceCard;
+      errorCard.setConfig({
+        type: 'error',
+        error: 'The following entities cannot be found: ' + errorText,
+        origConfig: this.config,
+      });
+      return [
+        false,
+        html`
+          ${errorCard}
+        `,
+      ];
+    }
+
+    return [true, html``];
+  }
+
   private _cardHtml(): TemplateResult {
     return html`
       <ha-card
@@ -138,29 +171,10 @@ export class HomeeThermostatCard extends LitElement {
 
   protected render(): TemplateResult | void {
     // TODO Check for stateObj or other necessary things and render a warning if missing
-    this.myEntities = new Array<HassEntity>();
-
-    let errorText = '';
-    this.config.entities.map(ent => {
-      const stateObj = this.hass.states[ent];
-      if (!stateObj) {
-        errorText += ent;
-      } else {
-        this.myEntities.push(stateObj);
-      }
-    });
-    if (errorText != '') {
-      //this.config.show_warning = true;
-      //throw new Error('The following entities cannot be found: ' + errorText);
-      const errorCard = document.createElement('hui-error-card') as LovelaceCard;
-      errorCard.setConfig({
-        type: 'error',
-        error: 'The following entities cannot be found: ' + errorText,
-        origConfig: this.config,
-      });
-      return html`
-        ${errorCard}
-      `;
+    // check stateObj
+    const checkRes = this._checkforStateObj();
+    if (!checkRes[0]) {
+      return checkRes[1];
     }
 
     if (myGuard) {
